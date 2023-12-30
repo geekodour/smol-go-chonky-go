@@ -1,0 +1,262 @@
+* smol-go-chonky-go
+** What?
+- We've a toy go webserver which has few crud-like api endpoints which may/may-not talk to a postgres db.
+- This project tries to deploy this in n-number of ways. It's just an experiment, not a tutorial or suggestion on how to do it.
+** Setups
+- Infra Setup
+- Backend Setup
+- Database Setup
+- Observability Setup
+
+#+begin_quote
+In the following listing, responsibilities can overlap. Eg. HTTPS would be pure infra concern but could also be a backend concern. So, it's not a strict separation.
+#+end_quote
+*** Infra setup
+| Component/Function              | P(/5) | Remark                                                                                  |
+|---------------------------------+-------+-----------------------------------------------------------------------------------------|
+| Environment(Dev/Staging/Prod)   | P0    | For most cases, we'll be fine with just dev&prod                                        |
+| IaC setup of Infra              | P0    | Use something like TF but [[https://www.reddit.com/r/Terraform/comments/103s3zd/terraform_ecs_ecr/j33odl5/][only]] [[https://developer.hashicorp.com/terraform/intro/vs/chef-puppet][for]] infra provisioning.                                  |
+| Application Provisioning        | P0    | This could be done via TF or provider cli tools or even ansible. Maybe trigger from CD. |
+| LB & HTTPS(in LB/Reverse Proxy) | P1    | Depending on requirements, you'd pick provider load balancer/own reverse proxy/a mix    |
+| CI                              | P1    | With things like github actions, it's very convenient, so freebie.                      |
+| CD                              | P1    | We're doing containers, so build images, push, trigger updates on provider etc.         |
+| Runtime config management       | P1    | When [[https://github.com/aws-samples/amazon-ecs-configmaps-example/blob/main/README.md][not in k8s]]/directly running on VM, we handle runtime config explicitly.            |
+| Load Balancer                   | P2    | Nice to have                                                                            |
+| Service Discovery               | P5    | Not really needed if provider provides SD, plus we just have a go webapp                |
+| Container Orchestrator          | P5    | Again, not really needed. But usually for containers you'll indirectly end-up using one |
+| Bastion server                  | P5    | [[https://docs.aws.amazon.com/prescriptive-guidance/latest/patterns/access-a-bastion-host-by-using-session-manager-and-amazon-ec2-instance-connect.html][Useful]] [[https://goteleport.com/blog/ssh-bastion-host/][but]] if using AWS, SSM should [[https://aws.amazon.com/blogs/mt/replacing-a-bastion-host-with-amazon-ec2-systems-manager/][be enough]]                                           |
+*** Backend setup
+| Component/Function       | P(/5) | Remark                                                              |
+|--------------------------+-------+---------------------------------------------------------------------|
+| Live API server/Main App | P0    |                                                                     |
+| Containerization         | P0    | Pretty much create images but check [[https://github.com/mozilla-services/Dockerflow#containerized-app-requirements][dockerflow]] for reference.       |
+| Instrumented             | P1    |                                                                     |
+| HTTPS(in application)    | P3    | Usually a concern of the LB/ReverseProxy, but you [[https://github.com/caddyserver/certmagic][could bake it in]]. |
+| API Gateway              | nil   | AWS has [[https://aws.amazon.com/api-gateway/][API]] [[https://cloud.google.com/endpoints][Gateway]], we could also selfhost something like [[https://github.com/kong/kong][kong]]     |
+| Rate Limiter             | nil   | This can be part of the API gateway/Application logic               |
+| Authentication           | nil   | This can be part of the API gateway/Application logic               |
+*** Database setup
+| Component/Function | P(/5) | Remark                                                                      |
+|--------------------+-------+-----------------------------------------------------------------------------|
+| Containerization   | P0    | DB containerization is sometimes criticized, but it poses no issues for us. |
+| Connection pooling | P1    |                                                                             |
+| DB Backup          |       |                                                                             |
+| DB replication     |       |                                                                             |
+*** Observability Setup
+| Component/Function | P(/5) | Remark                                                      |
+|--------------------+-------+-------------------------------------------------------------|
+| Logging            | P0    | Service, host, daemon logs. collectors, processors, storage |
+| Metrics            | P0    |                                                             |
+| Grafana            | P0    |                                                             |
+| Alerting           | P2    |                                                             |
+| OpenTelemetry      | P5    | Would be nice but not really as of the moment               |
+| Long term metrics  | nil   | Would be nice but not really as of the moment               |
+| Error Tracking     | nil   | We would want this in a real application, but not for this  |
+| Profiling          | nil   | Not really [[https://github.com/grafana/pyroscope][part of]] an observability setup but useful        |
+| Tracing            | nil   | We don't need distributed tracing                           |
+**** What metrics to trace?
+Also see [[https://sirupsen.com/metrics][Metrics For Your Web Application?]]
+***** Backend
+| Metric                    | P(/5) | Remark                                                                         |
+|---------------------------+-------+--------------------------------------------------------------------------------|
+| Availability check        | P0    | Healthcheck&API endpoint check(can be [[https://jvns.ca/blog/2022/07/09/monitoring-small-web-services/][baked into healthcheck]] if simple enough) |
+| API Endpoint stats        | P2    | Which endpoints are being hit, how many times etc.                             |
+| [[https://www.weave.works/blog/the-red-method-key-metrics-for-microservices-architecture/][RED]] Metrics               | P1    | Req(Rate,Error,Duration)                                                       |
+| Request Queuing Time      | P5    | Time between load balancer to your app                                         |
+| Throughput by HTTP status | P2    | Signals overall health                                                         |
+***** Database
+| Metric                     | P(/5) | Remark |
+|----------------------------+-------+--------|
+| Availability               | P0    |        |
+| Connections                | P0    |        |
+| Database size              | P1    |        |
+| queries made/rows returned | P5    |        |
+| Connection Pool metrics    | P3    |        |
+| Response Latency           | P3    |        |
+| Cache hit/miss             | P3    |        |
+| Calls to the db/min        | P2    |        |
+| Client side DB pool        |       |        |
+| Server side DB pool        |       |        |
+***** System
+| Metric            | P(/5) | Remark                                                      |
+|-------------------+-------+-------------------------------------------------------------|
+| Container metrics | P0    | Usually [[https://aws.amazon.com/blogs/compute/running-an-amazon-ecs-task-on-every-instance/][cadvisor]]                                            |
+| Node/Host metrics | P0    | Everything node-exporter(fd,io,mem,cpu etc.) and pings, [[https://www.brendangregg.com/usemethod.html][USE]] |
+** Benchmarks & Tests
+- K6s
+** Flavors
+#+begin_src emacs-lisp :exports results :eval never-export
+(setq projects '())
+(defun prepare-project-list ()
+  (let ((el (org-element-at-point)))
+    (push
+     (list
+      (org-element-property :STATUS el)
+      (org-element-property :raw-value el)
+      ;; NOTE: linking to heading doesn't seem to render on github atm
+      ;; See: https://github.com/novoid/github-orgmode-tests
+      ;; (concat "[[*" (org-element-property :raw-value el) "][" (org-element-property :raw-value el) "]]")
+      (org-element-property :PLATFORM el)
+      (org-element-property :WOULD_USE el)
+      (org-element-property :SOURCE el)) projects)))
+(org-map-entries #'prepare-project-list "HTYPE=\"flavor\"+LEVEL=3")
+(setq projects (nreverse projects))
+(push '("🔮" "Name" "Platform" "Would Use" "Source") projects)
+#+end_src
+
+#+RESULTS:
+| 🔮 | Name                                         | Platform         | Would Use            | Source |
+| 🚧 | Base                                         | Local            | YES                  | [[https://github.com/geekodour/smol-go-chonky-go/tree/base][source]] |
+| 🚧 | Base + Observability + Compose               | Local            | NO                   | nil    |
+| 🚧 | w LB/RP + HTTPS                              | AWS EC2          | NO                   | nil    |
+| 🚧 | w ALB + HTTPS + Subnets                      | AWS ECS(EC2)     | YES                  | nil    |
+| 🚧 | w/o LB/RP + HTTPS                            | AWS ECS(EC2)     | NO (experiment)      | nil    |
+| 🚧 | w traefik + HTTPS + Subnets                  | AWS ECS(EC2)     | NO (experiment)      | nil    |
+| 🚧 | w Nomad + traefik + HTTPS + Subnets          | Hetzner          | MAYBE                | nil    |
+| 🚧 | w Nomad + traefik + HTTPS + Kong + Subnets   | Hetzner          | MAYBE                | nil    |
+| 🚧 | Fly.io                                       | Fly              | YES                  | nil    |
+| 🚧 | w Cloudflare Tunnel                          | Local+Cloudflare | YES (in development) | nil    |
+| 🚧 | Instead of containers, we nix                | EC2, NixOS AMI   | YES (experimental)   | nil    |
+| 🚧 | w Caddy, serve static files + Cloudflare CDN | AWS ECS(EC2)     | NO (experimental)    | nil    |
+| 🚧 | Run the the browser w wasm                   | Browser          | NO (experimental)    | nil    |
+
+*** Base
+:PROPERTIES:
+:HTYPE: flavor
+:STATUS: 🚧
+:PLATFORM: Local
+:WOULD_USE: YES
+:SOURCE: [[https://github.com/geekodour/smol-go-chonky-go/tree/base][source]]
+:END:
+- Dev Environment: Use [[https://devenv.sh/][devenv]] for setting up local dev environment.
+- Backend: Go application, Postgres
+- Benchmarks & Tests & CI setup
+*** Base + Observability + Compose
+:PROPERTIES:
+:HTYPE: flavor
+:STATUS: 🚧
+:PLATFORM: Local
+:WOULD_USE: NO
+:END:
+- Instrument Base
+- Containerize App, Database
+- Basic Observability setup: Prometheus, Grafana, Loki and exporters
+- The whole setup with Observability setup in Docker compose should run E2E
+- Record benchmarks, Observe metrics, Add/Update grafana
+*** w LB/RP + HTTPS
+:PROPERTIES:
+:HTYPE: flavor
+:STATUS: 🚧
+:PLATFORM: AWS EC2
+:WOULD_USE: NO
+:END:
+- Basically just run docker compose on the same server
+- The Reverse Proxy+App+DB+Observability Setup, everything in one server
+- Instead of EC2, we could go with any host provider here
+- Run benchmarks
+*** w ALB + HTTPS + Subnets
+:PROPERTIES:
+:HTYPE: flavor
+:STATUS: 🚧
+:WOULD_USE: YES
+:PLATFORM: AWS ECS(EC2)
+:END:
+- Create VPC subnets
+- LB should be in a public subnet, other things in private subnet
+- Every component(except daemons, eg. node-exporter) will be ECS task
+- Make sure service discovery is working as expected
+- Run benchmarks
+*** w/o LB/RP + HTTPS
+:PROPERTIES:
+:HTYPE: flavor
+:STATUS: 🚧
+:WOULD_USE: NO (experiment)
+:PLATFORM: AWS ECS(EC2)
+:END:
+- Go application itself should do TLS termination.
+*** w traefik + HTTPS + Subnets
+:PROPERTIES:
+:HTYPE: flavor
+:STATUS: 🚧
+:WOULD_USE: NO (experiment)
+:PLATFORM: AWS ECS(EC2)
+:END:
+- See [[https://labs.compose-x.io/apps/traefik_ecs_part1.html][NLB + nginx/traefik/caddy]]
+- See [[https://caddy.community/t/load-balancing-caddy/10467][Load balancing Caddy - Wiki - Caddy Community]]
+*** w Nomad + traefik + HTTPS + Subnets
+:PROPERTIES:
+:HTYPE: flavor
+:STATUS: 🚧
+:WOULD_USE: MAYBE
+:PLATFORM: Hetzner
+:END:
+- This is experimental
+- Nomad uses consul for SD
+*** w Nomad + traefik + HTTPS + Kong + Subnets
+:PROPERTIES:
+:HTYPE: flavor
+:STATUS: 🚧
+:WOULD_USE: MAYBE
+:PLATFORM: Hetzner
+:END:
+- This is experimental
+*** Fly.io
+:PROPERTIES:
+:HTYPE: flavor
+:STATUS: 🚧
+:PLATFORM: Fly
+:WOULD_USE: YES
+:END:
+*** w Cloudflare Tunnel
+:PROPERTIES:
+:HTYPE: flavor
+:STATUS: 🚧
+:PLATFORM: Local+Cloudflare
+:WOULD_USE: YES (in development)
+:END:
+*** Instead of containers, we nix
+:PROPERTIES:
+:HTYPE: flavor
+:STATUS: 🚧
+:PLATFORM: EC2, NixOS AMI
+:WOULD_USE: YES (experimental)
+:END:
+See [[https://krisztianfekete.org/self-hosting-mastodon-on-nixos-a-proof-of-concept/][Self-hosting Mastodon on NixOS, a proof-of-concept]]
+*** w Caddy, serve static files + Cloudflare CDN
+:PROPERTIES:
+:HTYPE: flavor
+:STATUS: 🚧
+:WOULD_USE: NO (experimental)
+:PLATFORM: AWS ECS(EC2)
+:END:
+- Current project structure doesn't lend itself but we can try
+*** Run the the browser w wasm
+:PROPERTIES:
+:HTYPE: flavor
+:STATUS: 🚧
+:PLATFORM: Browser
+:WOULD_USE: NO (experimental)
+:END:
+** 🤔 Other concerns and notes
+#+begin_quote
+These are sort of my personal takes, please feel to correct me in github issues :)
+#+end_quote
+*** If the main app is internet-ready, why use a reverse proxy?
+Go web-servers [[https://github.com/caddyserver/certmagic][are]] [[https://blog.cloudflare.com/exposing-go-on-the-internet/][internet-ready]] and sometimes based on your usecase you may actually want to take certain decisions based on the client certificate. However, in most other cases you might just want to have a reverse proxy(nginx/caddy/traefik etc). I feel it's one of those things that you have and not need rather than not have and need. Following are some situations where you might want to consider using a reverse proxy(You could still do these without a reverse proxy, but makes things a little bit more convenient).
+- If you plan to serve traffic from ~80/443~, you go process now has to be privileged/set capabilities. (Not the case if running on containers)
+- If you plan to run multiple instances of the webserver, the reverse proxy would act like a load-balancer.
+- Serve static files, logging, timeout handling, abstraction, Header handling, caching (basically abstracting away a whole lot of things)
+- Debugging help (more people will know how to solve an nginx issue than people who'll know how to debug if an server issue occurs in your application)
+*** When the provider already has a load balancer, do you need a reverse proxy?
+Cloud providers like AWS provide their own load balancers like ALB and NLB. When they do, if you're not using a feature that only [[https://www.nginx.com/blog/aws-alb-vs-nginx-plus/][your chosen]] reverse proxy has, you [[https://www.reddit.com/r/aws/comments/f5ttaj/ideal_setup_of_ecs_cluster_with_traefik_and_alb/][might as-well go]] with the provider provided load-balancer. Moreover, provider load balancer might have additional service discovery etc. which otherwise need to be done by you now.
+
+If your provider is not providing a load balancer, then [[https://www.nginx.com/][freely]] [[https://caddyserver.com/][pick]] [[https://traefik.io/][whatever]].
+
+For AWS, You can roughly go
+- [[https://labs.compose-x.io/apps/traefik_ecs_part1.html][NLB + nginx/traefik/caddy]]
+- ALB + (LB controller if using k8s)
+- Other usecases
+  - For ECS anywhere an [[https://aws.amazon.com/blogs/containers/implementing-application-load-balancing-of-amazon-ecs-anywhere-workloads-using-traefik-proxy/][external load balancer]] may be useful.
+  - When you want to manage [[https://caddy.community/t/load-balancing-caddy/10467][certificate from the reverse proxy]] instead [[https://www.reddit.com/r/aws/comments/e0a26w/is_it_safe_to_perform_unencryped_nonssl_http/][of the]] provider's load balancer
+*** Thoughts on managed databases?
+No. thoughts. Head. [[https://www.reddit.com/r/aws/comments/uq7z29/why_use_amazon_rds_when_i_can_host_my_own_postgres/i8pez0y/][Empty]].
