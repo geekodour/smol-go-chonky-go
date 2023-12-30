@@ -1,0 +1,119 @@
+* smol-go-chonky-go [base]
+** What?
+- We've a toy go webserver which has few crud-like api endpoints which may/may-not talk to a postgres db.
+- This project tries to deploy this in n-number of ways. It's just an experiment, not a tutorial or suggestion on how to do it.
+- See the [[https://github.com/geekodour/smol-go-chonky-go/tree/main][main]] branch for more info.
+** ~base~ setup
+*** Dev Environment
+- Usually [[https://nix.dev/][nix]] combined with [[https://github.com/nix-community/nix-direnv][direnv]] is sufficient for most of my development needs.
+- Since this project has few moving parts, the usual route to do would be to use ~docker-compose~. But I did not want to fiddle with images yet. Then I came across [[https://devenv.sh/][devenv]], I gave it a try. It's an excellent project but seemed like an overkill for my simple usecase.
+- So I adopted few ideas from ~devenv~. Using ~flake-parts~, ~numtide/devshell~ and [[https://github.com/F1bonacc1/process-compose][process-compose]].
+- So the entire dev environment now is at ~flake.nix~ and accompanying commands can be found in ~Makefile~
+*** Backend (Go)
+- [ ] Application Lifecycle
+- [ ] Logging setup
+**** API Endpoints :verb:
+template http://localhost:8000
+Accept: application/json
+***** Get cat
+#+begin_src verb :wrap src ob-verb-response
+get /cat/1
+Content-Type: application/json; charset=utf-8
+#+end_src
+
+#+RESULTS:
+#+begin_src ob-verb-response
+HTTP/1.1 200 OK
+Content-Type: application/json
+Date: Thu, 04 Jan 2024 16:01:35 GMT
+Content-Length: 104
+
+{
+  "cat_id": 1,
+  "name": "Whiskers",
+  "age": 2,
+  "description": "A fluffy white cat with black spots on its ears."
+}
+#+end_src
+
+***** Add cat
+#+begin_src verb :wrap src ob-verb-response
+post /cat
+Content-Type: application/json; charset=utf-8
+
+{
+    "name": "Jane Smith",
+    "age": 28,
+    "description": "the cutest catto"
+}
+#+end_src
+
+#+RESULTS:
+#+begin_src ob-verb-response
+HTTP/1.1 201 Created
+Content-Type: application/json
+Date: Thu, 04 Jan 2024 16:02:53 GMT
+Content-Length: 0
+#+end_src
+
+***** Update cat
+#+begin_src verb :wrap src ob-verb-response
+put /cat/1
+Content-Type: application/json; charset=utf-8
+
+{
+  "name": "Mr.Whiskers",
+  "age": 4,
+  "description": "bad boy"
+}
+#+end_src
+
+#+RESULTS:
+#+begin_src ob-verb-response
+HTTP/1.1 200 OK
+Content-Type: application/json
+Date: Thu, 04 Jan 2024 16:02:32 GMT
+Content-Length: 0
+#+end_src
+
+***** List cats
+#+begin_src verb :wrap src ob-verb-response
+get /cats
+Content-Type: application/json; charset=utf-8
+#+end_src
+
+#+RESULTS:
+#+begin_src ob-verb-response
+HTTP/1.1 200 OK
+Content-Type: application/json
+Date: Thu, 04 Jan 2024 16:03:06 GMT
+Content-Length: 2010
+
+[
+  {
+    "cat_id": 20,
+    "name": "Bella",
+    "age": 2,
+    "description": "A dainty and elegant Siamese cat."
+  },
+  {
+    "cat_id": 9,
+    "name": "Charlie",
+    "age": 4,
+    "description": "A friendly and outgoing tabby cat."
+  },
+  ...
+]
+#+end_src
+
+*** Database
+- [ ] Migrations
+- [ ] Connection pooling(server side)
+- [ ] DB [[https://github.com/esgn/pgtuned/tree/main][tuning]]/config
+- [-] Init scripts
+  - [X] Create appropriate roles, superuser, webuser
+  - [X] Create appropriate database other than postgres
+  - [X] Create appropriate schema
+  - [ ] Schema, Tablespaces, search-path, Users, Roles, pg_hba
+
+*** Benchmarks, Tests and CI
