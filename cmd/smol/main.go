@@ -1,8 +1,6 @@
 package main
 
 // TODO:
-// 1. logging & error
-// 2. lifecycle
 // 3. http server
 // 4. sqlc + pgx
 // 5. add the api endpoints
@@ -10,17 +8,29 @@ package main
 
 import (
 	"context"
-	// "fmt"
+	"fmt"
 	"log/slog"
-	// "net/http"
+	"net/http"
 	"os"
+	"time"
 
+	"github.com/alecthomas/kong"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/oklog/run"
 )
 
-func setupLogger() {
-	logLevel := &slog.LevelVar{} // INFO
-	logOpts := slog.HandlerOptions{Level: logLevel, AddSource: true}
+var cli struct {
+	DebugLog bool   `short:"d" help:"Enable debug logging"`
+	Port     string `default:"6666" short:"p" help:"Set port number"`
+}
+
+func setupLogger(debugLog bool) {
+	logLevel := &slog.LevelVar{}
+	logOpts := slog.HandlerOptions{Level: logLevel}
+	if debugLog {
+		logLevel.Set(slog.LevelDebug)
+		logOpts.AddSource = true
+	}
 
 	handler := func() slog.Handler {
 		if getEnv() == "production" {
@@ -31,13 +41,11 @@ func setupLogger() {
 	logger := slog.New(handler)
 
 	slog.SetDefault(logger)
-	// logLevel.Set(slog.LevelDebug) // if debug needed
 }
 
 func getEnv() string {
 	env, ok := os.LookupEnv("PROJECT_ENV")
 	if !ok {
-
 		slog.Error("unset env var")
 		os.Exit(1)
 	}
@@ -47,16 +55,67 @@ func getEnv() string {
 	return env
 }
 
-func dbPool() *pgxpool.Pool {
-	dbpool, err := pgxpool.New(context.Background(), os.Getenv("DB_URL"))
+func dbPool(ctx context.Context) *pgxpool.Pool {
+	dbpool, err := pgxpool.New(ctx, os.Getenv("DB_URL"))
 	if err != nil {
-		slog.Error("Unable to connect to database", slog.String("error", err.Error()))
+		slog.Error("db connection", slog.String("error", err.Error()))
+		os.Exit(1)
 	}
 	return dbpool
 }
 
+func reqLogger(hdlr http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() { slog.Info(r.Method, slog.String("path", r.URL.Path)) }()
+		hdlr.ServeHTTP(w, r)
+	})
+}
+
+type app struct {
+	dbpool *pgxpool.Pool
+}
+
+func (a app) healthz(w http.ResponseWriter, req *http.Request) {
+	if err := a.dbpool.Ping(context.Background()); err == nil {
+		w.WriteHeader(http.StatusOK)
+	} else {
+		w.WriteHeader(http.StatusInternalServerError)
+	}
+}
+
 func main() {
-	setupLogger()
-	dbpool := dbPool()
-	defer dbpool.Close()
+	kong.Parse(&cli,
+		kong.Name("smol"),
+		kong.Description("smol server"),
+		kong.ShortUsageOnError(),
+	)
+
+	setupLogger(cli.DebugLog)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	service := app{dbpool: dbPool(ctx)}
+	defer service.dbpool.Close()
+
+	var g run.Group
+	{
+		g.Add(run.SignalHandler(ctx, os.Interrupt))
+	}
+	{
+		mux := http.NewServeMux()
+		mux.HandleFunc("/healthz", service.healthz)
+
+		srv := &http.Server{Handler: reqLogger(mux), Addr: ":" + cli.Port}
+		g.Add(func() error {
+			fmt.Printf("Server listening on %s\n", cli.Port)
+			return srv.ListenAndServe()
+		}, func(err error) {
+			ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+			defer cancel()
+			_ = srv.Shutdown(ctx)
+		})
+	}
+
+	slog.Error("exited", "reason", g.Run())
 }
