@@ -84,6 +84,10 @@ nix-flake-show:
 nix-run-dev:
 	nix run .#dev
 
+.PHONY: pgcli # pop pgcli shell
+pgcli:
+	pgcli -U postgres -p $(PGPORT) -h $(PGSOCK)
+
 .PHONY: help # Generate list of targets with descriptions
 help:
 	@echo "Target descriptions"

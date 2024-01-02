@@ -1,0 +1,8 @@
+export PROJECT_ROOT=$PWD
+export PROJECT_DATA_DIR=$PROJECT_ROOT/.data
+
+# postgres
+export PGDATA=$PROJECT_DATA_DIR/postgres_data
+export PGSOCK=$PROJECT_DATA_DIR/postgres_sock
+export PGPORT=7777
+use flake . --impure
