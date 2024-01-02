@@ -1,0 +1,25 @@
+name: CI 🐂
+on:
+  push:
+    branches-ignore:
+      - main
+  pull_request:
+
+jobs:
+  test_go:
+    strategy:
+      fail-fast: false
+      matrix:
+        go: ["1.21"]
+    runs-on: ubuntu-latest
+    name: Go ${{ matrix.go }} tests
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v4
+        with:
+          go-version: ${{ matrix.go }}
+      - name: Run tests
+        run: make test
+      - name: Run unused checks
+        run: make unused
+
