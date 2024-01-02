@@ -1,3 +1,6 @@
+# github.com/alecthomas/kong v0.8.1
+## explicit; go 1.18
+github.com/alecthomas/kong
 # github.com/jackc/pgpassfile v1.0.0
 ## explicit; go 1.12
 github.com/jackc/pgpassfile
@@ -22,6 +25,9 @@ github.com/jackc/pgx/v5/pgxpool
 ## explicit; go 1.19
 github.com/jackc/puddle/v2
 github.com/jackc/puddle/v2/internal/genstack
+# github.com/oklog/run v1.1.0
+## explicit; go 1.13
+github.com/oklog/run
 # golang.org/x/crypto v0.9.0
 ## explicit; go 1.17
 golang.org/x/crypto/pbkdf2

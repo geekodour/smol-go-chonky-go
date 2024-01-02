@@ -2,7 +2,11 @@ module github.com/geekodour/smol-go-chonky-go
 
 go 1.21.5
 
-require github.com/jackc/pgx/v5 v5.5.1
+require (
+	github.com/alecthomas/kong v0.8.1
+	github.com/jackc/pgx/v5 v5.5.1
+	github.com/oklog/run v1.1.0
+)
 
 require (
 	github.com/jackc/pgpassfile v1.0.0 // indirect
