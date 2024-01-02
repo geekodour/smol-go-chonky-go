@@ -14,7 +14,7 @@ endif
 
 # custom
 GOBUILD_FLAGS ?= -a
-EXECS	      ?= bake
+EXECS	      ?= smol
 
 .PHONY: spin # Get the code into shape
 spin: unused lint format test
@@ -75,7 +75,7 @@ list-platforms:
 	go tool dist list
 
 
-
+# nix
 .PHONY: nix-flake-show # Show flake structure
 nix-flake-show:
 	nix flake show
@@ -84,9 +84,18 @@ nix-flake-show:
 nix-run-dev:
 	nix run .#dev
 
+# database
 .PHONY: pgcli # pop pgcli shell
 pgcli:
-	pgcli -U postgres -p $(PGPORT) -h $(PGSOCK)
+	pgcli -U $(PGUSER) -p $(PGPORT) -h $(PGSOCK)
+
+.PHONY: migration-status # goose migration status
+migration-status:
+	goose --dir db/migrations status
+
+.PHONY: sqlc-generate # sqlc generate
+sqlc-generate:
+	sqlc generate -f db/sqlc-files/sqlc.yaml
 
 .PHONY: help # Generate list of targets with descriptions
 help:

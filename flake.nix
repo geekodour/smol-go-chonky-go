@@ -52,6 +52,8 @@
               pkgs.gotestsum
               pkgs.gofumpt
               pkgs.golangci-lint
+              pkgs.sqlc
+              pkgs.goose
 
               # postgres
               pkgs.postgresql_16

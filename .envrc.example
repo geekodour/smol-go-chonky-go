@@ -5,4 +5,15 @@ export PROJECT_DATA_DIR=$PROJECT_ROOT/.data
 export PGDATA=$PROJECT_DATA_DIR/postgres_data
 export PGSOCK=$PROJECT_DATA_DIR/postgres_sock
 export PGPORT=7777
+export PGUSER="appadmin"
+export PGDATABASE="catdb"
+export DB_URL="postgresql://$PGUSER@localhost:$PGPORT/$PGDATABASE"
+
+# application
+export PROJECT_ENV="development" # development / production
+
+# db migration
+export GOOSE_DRIVER="postgres"
+export GOOSE_DBSTRING=$DB_URL
+
 use flake . --impure
