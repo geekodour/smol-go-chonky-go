@@ -53,11 +53,15 @@
               pkgs.gofumpt
               pkgs.golangci-lint
               pkgs.sqlc
-              pkgs.goose
 
               # postgres
               pkgs.postgresql_16
               pkgs.pgcli
+
+              # ops
+              pkgs.goose
+              pkgs.k6
+              pkgs.prometheus
             ]];
         };
 
