@@ -100,6 +100,8 @@ type App struct {
 	q      *db.Queries
 }
 
+// we're checking the connection with the db as-well in our health-check, as the
+// sole purpose of our application is to get data from the db, it's fine to do so.
 func (app App) healthz(w http.ResponseWriter, req *http.Request) {
 	if err := app.dbpool.Ping(context.Background()); err == nil {
 		w.WriteHeader(http.StatusOK)
