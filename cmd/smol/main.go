@@ -20,6 +20,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/oklog/run"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var cli struct {
@@ -197,6 +198,7 @@ func (app App) handleCat(w http.ResponseWriter, req *http.Request) {
 func (app App) listCats(w http.ResponseWriter, req *http.Request) {
 	cats, err := app.q.ListCats(req.Context())
 	if err != nil {
+		slog.Error("application", "err", err)
 		http.Error(w, "internal", http.StatusInternalServerError)
 		return
 	}
@@ -231,24 +233,37 @@ func main() {
 	{
 		g.Add(run.SignalHandler(ctx, os.Interrupt))
 	}
+	// Telemetry endpoints
+	// GET /healthz 			# healthcheck
+	// GET /metrics 			# prometheus metrics
 	{
-		// Endpoints
-		//  GET /healthz 			# healthcheck
-		//  GET /cats 				# list cats
-		//  GET /cat/:id 			# get cat
-		//  PUT /cat/:id 			# update cat
-		// POST /cat 				# post cat
-		//
-		// NOTE: Currently manually check HTTP methods/param extraction
-		//       For more robust handling, check: https://github.com/go-chi/chi
+
 		mux := http.NewServeMux()
 		mux.HandleFunc("/healthz", service.healthz)
+		mux.Handle("/metrics", promhttp.Handler())
+		muxPort := "9090"
+		srv := &http.Server{Handler: reqLogger(mux), Addr: ":" + muxPort}
+		g.Add(func() error {
+			fmt.Printf("Telemetry server listening on %s\n", muxPort)
+			return srv.ListenAndServe()
+		}, func(err error) {
+			ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+			defer cancel()
+			_ = srv.Shutdown(ctx)
+		})
+	}
+	// Web endpoints
+	//  GET /cats 				# list cats
+	//  GET /cat/:id 			# get cat
+	//  PUT /cat/:id 			# update cat
+	// POST /cat 				# post cat
+	{
+		mux := http.NewServeMux()
 		mux.HandleFunc("/cats", service.listCats)
 		mux.HandleFunc("/cat/", service.handleCat)
-
 		srv := &http.Server{Handler: commonHeaders(reqLogger(mux)), Addr: ":" + cli.Port}
 		g.Add(func() error {
-			fmt.Printf("Server listening on %s\n", cli.Port)
+			fmt.Printf("Web server listening on %s\n", cli.Port)
 			return srv.ListenAndServe()
 		}, func(err error) {
 			ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
