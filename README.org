@@ -117,3 +117,25 @@ Content-Length: 2010
   - [ ] Schema, Tablespaces, search-path, Users, Roles, pg_hba
 
 *** Benchmarks, Tests and CI
+- Benchmarks with k6
+*** List of things to do
+- [ ] Add Telemetry to go application
+- [ ] Containerize application
+- [ ] Run the whole setup in a containerized environment
+  - [ ] Application
+  - [ ] Postgres
+  - [ ] Grafana
+  - [ ] Prometheus
+  - [ ] Loki
+- [ ] Using terraform and docker compose, deploy the entire thing on 1 EC2
+- [ ] PG bouncer (optional for now)
+- [ ] Using terraform to provision needed subnets, add ecs(ec2) containers for each service(a dummy image w sleep thing), provison volumns etc.
+  - [ ] Decide on the SD system to use
+  - [ ] Create a [[https://earthly.dev/blog/deploy-dockcontainers-to-awsecs-using-terraform/][diff user]] for deployment?
+  - [ ] We also want to ensure DNS stuff here
+  - [ ] See if we can provision tailscale (sidecar or what etc.)
+- [ ] Automated image building and pushing to ECS
+  - TF will not deploy stuff, only provision
+  - We'll run TF manually once, we should also be also destroy the infra at one go
+  - Also want to ensure HTTPS
+  - See [[https://github.com/aws-actions/amazon-ecs-render-task-definition][aws-actions/amazon-ecs-render-task-definition]]
