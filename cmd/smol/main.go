@@ -20,6 +20,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/oklog/run"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
@@ -208,13 +209,48 @@ func (app App) listCats(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
+// TODO: Should we call this Server??
 func NewApp() *App {
 	dbpool := dbPool(context.TODO())
 	q := db.New(dbpool)
 	return &App{dbpool: dbpool, q: q}
 }
 
+// type metrics struct {
+// 	cpuTemp  prometheus.Gauge
+// 	hdFailures *prometheus.CounterVec
+// }
+
+// func NewMetrics(reg prometheus.Registerer) *metrics {
+// 	m := &metrics{
+// 		cpuTemp: prometheus.NewGauge(prometheus.GaugeOpts{
+// 			Name: "cpu_temperature_celsius",
+// 			Help: "Current temperature of the CPU.",
+// 		}),
+// 		hdFailures: prometheus.NewCounterVec(
+// 			prometheus.CounterOpts{
+// 				Name: "hd_errors_total",
+// 				Help: "Number of hard-disk errors.",
+// 			},
+// 			[]string{"device"},
+// 		),
+// 	}
+// 	reg.MustRegister(m.cpuTemp)
+// 	reg.MustRegister(m.hdFailures)
+// 	return m
+// }
+
 func main() {
+
+	// // Create a non-global registry.
+	// reg := prometheus.NewRegistry()
+
+	// // Create new metrics and register them using the custom registry.
+	// m := NewMetrics(reg)
+	// // Set values for the new created metrics.
+	// m.cpuTemp.Set(65.3)
+	// m.hdFailures.With(prometheus.Labels{"device":"/dev/sda"}).Inc()
+
 	kong.Parse(&cli,
 		kong.Name("smol"),
 		kong.Description("smol server"),
@@ -241,6 +277,7 @@ func main() {
 		mux := http.NewServeMux()
 		mux.HandleFunc("/healthz", service.healthz)
 		mux.Handle("/metrics", promhttp.Handler())
+		mux.Handle("/metrics2", promhttp.HandlerFor(reg, promhttp.HandlerOpts{Registry: reg}))
 		muxPort := "9090"
 		srv := &http.Server{Handler: reqLogger(mux), Addr: ":" + muxPort}
 		g.Add(func() error {
